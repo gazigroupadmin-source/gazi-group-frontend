@@ -9,7 +9,7 @@ export default function SuperAdminPage() {
   useEffect(() => {
     const fetchSystemUsers = async () => {
       try {
-        const response = await fetch("http://localhost:5000/api/users");
+        const response = await fetch("http://gazi-group-backend-1.onrender.com/api/users");
         if (!response.ok) throw new Error("Database nodes payload communication failure.");
         const data = await response.json();
         setUsers(data);
@@ -25,7 +25,7 @@ export default function SuperAdminPage() {
 
   const changeUserTierNode = async (email: string, targetTier: string) => {
     try {
-      const response = await fetch("http://localhost:5000/api/users/update-tier", {
+      const response = await fetch("http://gazi-group-backend-1.onrender.com/api/users/update-tier", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ email, tier: targetTier })
