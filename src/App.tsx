@@ -18,7 +18,7 @@ import { LayoutDashboard, Building2, ArrowLeftRight, TrendingUp, ShieldAlert, Pi
 type ActivePage = "dashboard" | "cards" | "transactions" | "investments" | "loans" | "budgets" | "savings-goals" | "profile" | "files" | "superadmin" | "person";
 
 // ⚡ BACKEND BACKBONE BASE URL - HOSTED LOCAL TO YOUR MACHINE FOR PHONE AND COMPUTER INTER-WIRE settle
-const BACKEND_SERVER_API = "http://localhost:5000/api";
+const BACKEND_SERVER_API = "http://gazi-group-backend-1.onrender.com/api";
 
 export default function App() {
   const [isLoggedIn, setIsLoggedIn] = useState(false);
