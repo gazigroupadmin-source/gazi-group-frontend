@@ -1,74 +1,87 @@
-import express from "express";
-import mongoose from "mongoose";
-import cors from "cors";
-import dotenv from "dotenv";
-
-dotenv.config();
+require('dotenv').config();
+const express = require('express');
+const { Pool } = require('pg');
+const bcrypt = require('bcryptjs');
+const cors = require('cors');
 
 const app = express();
 const PORT = process.env.PORT || 5000;
 
+// Middleware
 app.use(cors());
 app.use(express.json());
 
-const MONGO_URI = "mongodb://gazigroupadmin_db_user:Gazi_Admin_2026@cluster0-shard-00-00.2chh7au.mongodb.net:27017/rkmoney?ssl=true&authSource=admin";
-
-mongoose.connect(MONGO_URI)
-  .then(() => console.log("✓ MongoDB Cloud Database Connected Successfully!"))
-  .catch((err) => console.error("Database Connection Error:", err));
-
-const UserSchema = new mongoose.Schema({
-  email: { type: String, required: true, unique: true, lowercase: true, trim: true },
-  name: { type: String, required: true, trim: true },
-  password: { type: String, required: true },
-  tier: { type: String, default: "Free" },
-  joined: { type: Date, default: Date.now }
-});
-
-const UserModel = mongoose.model("User", UserSchema);
-
-// 🔄 API ROUTE A: FETCH ALL REGISTERED SYSTEM USERS
-app.get("/api/users", async (req, res) => {
-  try {
-    const allUsers = await UserModel.find({}, { password: 0 });
-    res.status(200).json(allUsers);
-  } catch (err) {
-    res.status(500).json({ error: "Internal Server Error" });
+// Render PostgreSQL Connection Setup
+const pool = new Pool({
+  connectionString: process.env.DATABASE_URL,
+  ssl: {
+    rejectUnauthorized: false // Render par connection ke liye ye zaroori hai
   }
 });
 
-// 🔄 API ROUTE B: SUPER ADMIN SYSTEM TIER MODIFICATION NODE
-app.post("/api/users/update-tier", async (req, res) => {
-  const { email, tier } = req.body;
+// Database Connection Test aur Table Automatic Create Karna
+const initDB = async () => {
   try {
-    const updatedUser = await UserModel.findOneAndUpdate(
-      { email: email.toLowerCase().trim() },
-      { tier: tier },
-      { new: true }
+    await pool.query('SELECT NOW()');
+    console.log('✅ Render PostgreSQL Database Connected Successfully!');
+
+    // Agar users table nahi bani toh automatic ban jayegi
+    const createTableQuery = `
+      CREATE TABLE IF NOT EXISTS users (
+        id SERIAL PRIMARY KEY,
+        name VARCHAR(100) NOT NULL,
+        email VARCHAR(100) UNIQUE NOT NULL,
+        password VARCHAR(255) NOT NULL,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+      );
+    `;
+    await pool.query(createTableQuery);
+    console.log('📁 Users Table is Ready!');
+  } catch (err) {
+    console.error('❌ Database Connection Error:', err.message);
+  }
+};
+initDB();
+
+// 🚀 ROUTE: User Registration (Signup)
+app.post('/api/register', async (req, res) => {
+  const { name, email, password } = req.body;
+
+  // Simple Validation
+  if (!name || !email || !password) {
+    return res.status(400).json({ message: 'Please enter all fields' });
+  }
+
+  try {
+    // 1. Check karo user pehle se register toh nahi hai
+    const userExist = await pool.query('SELECT * FROM users WHERE email = $1', [email]);
+    if (userExist.rows.length > 0) {
+      return res.status(400).json({ message: 'User already exists with this email' });
+    }
+
+    // 2. Password ko Secure (Hash) karo
+    const salt = await bcrypt.genSalt(10);
+    const hashedPassword = await bcrypt.hash(password, salt);
+
+    // 3. Database mein Naya User Insert karo
+    const newUser = await pool.query(
+      'INSERT INTO users (name, email, password) VALUES ($1, $2, $3) RETURNING id, name, email, created_at',
+      [name, email, hashedPassword]
     );
-    res.status(200).json({ message: "Tier update committed", user: updatedUser });
-  } catch (err) {
-    res.status(500).json({ error: "Failed to rewrite token" });
-  }
-});
 
-// 🔄 API ROUTE C: LIVE REGISTRATION ACCESS DATA GATEWAY
-app.post("/api/auth/register", async (req, res) => {
-  const { email, name, password, tier } = req.body;
-  try {
-    const newUser = new UserModel({
-      email: email.toLowerCase().trim(),
-      name,
-      password,
-      tier: tier || "Free"
+    // Response send karo
+    res.status(201).json({
+      message: 'User registered successfully!',
+      user: newUser.rows[0]
     });
-    await newUser.save();
-    res.status(201).json({ message: "Account setup committed successfully!" });
-  } catch (err) {
-    res.status(400).json({ error: "Bhai, yeh email pehle se live node par exist hai!" });
+
+  } catch (error) {
+    console.error(error.message);
+    res.status(500).json({ message: 'Server Error' });
   }
 });
 
+// Server Start
 app.listen(PORT, () => {
-  console.log(`🚀 GAZI GROUP SERVER RUNNING LIVE ON PORT ${PORT}`);
+  console.log(`🚀 Server running on port ${PORT}`);
 });
